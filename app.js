@@ -1506,10 +1506,28 @@ const Actions = {
     },
 
     deleteAll(data) {
+        if (!data) {
+            data = Storage.loadData();
+        }
+        if (!data) {
+            return false;
+        }
+        
+        // Réinitialiser complètement les données
         data.universities = [];
         data.ui.activeUniversityId = '';
-        Storage.saveData(data);
-        return true;
+        data.ui.filters = {
+            subjectId: '',
+            owner: '',
+            status: '',
+            priority: '',
+            overdueOnly: false,
+            hasDeadline: null
+        };
+        data.ui.view = 'table';
+        
+        const saved = Storage.saveData(data);
+        return saved;
     }
 };
 
@@ -1936,22 +1954,31 @@ const App = {
         });
 
         // Bouton tout supprimer
-        document.getElementById('btn-delete-all').addEventListener('click', (e) => {
-            e.preventDefault();
-            if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible.')) {
-                if (confirm('Confirmez une dernière fois : toutes les universités, matières et fiches seront supprimées.')) {
-                    // Recharger les données à jour
-                    const currentData = Storage.loadData();
-                    if (Actions.deleteAll(currentData)) {
-                        Storage.showToast('Toutes les données ont été supprimées', 'success');
-                        this.data = Storage.loadData();
-                        this.render();
-                    } else {
-                        Storage.showToast('Erreur lors de la suppression', 'error');
+        const btnDeleteAll = document.getElementById('btn-delete-all');
+        if (btnDeleteAll) {
+            btnDeleteAll.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible.')) {
+                    if (confirm('Confirmez une dernière fois : toutes les universités, matières et fiches seront supprimées.')) {
+                        // Recharger les données à jour
+                        const currentData = Storage.loadData();
+                        if (currentData && Actions.deleteAll(currentData)) {
+                            Storage.showToast('Toutes les données ont été supprimées', 'success');
+                            // Réinitialiser l'app
+                            this.data = Storage.loadData();
+                            if (!this.data) {
+                                // Si plus de données, réinitialiser avec les données par défaut
+                                this.data = DataModel.initData();
+                            }
+                            this.render();
+                        } else {
+                            Storage.showToast('Erreur lors de la suppression', 'error');
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         // Action suppression université depuis les tabs
         document.addEventListener('click', (e) => {
