@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Suivi de refonte des fiches de cours</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1 class="header-title">Dashboard de suivi de refonte</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" id="btn-import-excel">
+                    <span>📊</span> Importer Excel
+                </button>
+                <button class="btn btn-secondary" id="btn-export-json">
+                    <span>💾</span> Exporter JSON
+                </button>
+                <button class="btn btn-secondary" id="btn-import-json">
+                    <span>📥</span> Importer JSON
+                </button>
+                <button class="btn btn-danger" id="btn-delete-all">
+                    <span>🗑️</span> Tout supprimer
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- University Tabs -->
+        <div class="tabs-container" id="tabs-container"></div>
+
+        <!-- KPI Section -->
+        <section class="kpi-section" id="kpi-section"></section>
+
+        <!-- View Selector -->
+        <div class="view-selector">
+            <button class="view-btn active" data-view="table">
+                <span>📋</span>
+                <span>Table</span>
+            </button>
+            <button class="view-btn" data-view="kanban">
+                <span>📌</span>
+                <span>Kanban</span>
+            </button>
+            <button class="view-btn" data-view="calendar">
+                <span>📅</span>
+                <span>Calendrier</span>
+            </button>
+        </div>
+
+        <!-- Filters Section -->
+        <section class="filters-section" id="filters-section"></section>
+
+        <!-- Content Area -->
+        <section class="content-section">
+            <div id="view-content"></div>
+        </section>
+    </main>
+
+    <!-- Import Excel Modal -->
+    <div class="modal" id="modal-import-excel">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Importer un fichier Excel</h2>
+                <button class="modal-close" data-modal="modal-import-excel">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="drop-zone" id="drop-zone">
+                    <p>Glissez-déposez votre fichier .xlsx ici</p>
+                    <p>ou</p>
+                    <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
+                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                        Sélectionner un fichier
+                    </button>
+                </div>
+                <div class="import-info" id="import-info"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import JSON Modal -->
+    <div class="modal" id="modal-import-json">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Importer un fichier JSON</h2>
+                <button class="modal-close" data-modal="modal-import-json">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>
+                        <input type="radio" name="import-mode" value="merge" checked>
+                        Fusionner (conserver les données existantes)
+                    </label>
+                    <label>
+                        <input type="radio" name="import-mode" value="replace">
+                        Remplacer (écraser les données existantes)
+                    </label>
+                </div>
+                <div class="drop-zone" id="drop-zone-json">
+                    <p>Glissez-déposez votre fichier .json ici</p>
+                    <p>ou</p>
+                    <input type="file" id="json-input" accept=".json" hidden>
+                    <button class="btn btn-primary" onclick="document.getElementById('json-input').click()">
+                        Sélectionner un fichier
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal/Drawer -->
+    <div class="modal drawer" id="modal-edit-item">
+        <div class="modal-content drawer-content">
+            <div class="modal-header">
+                <h2 id="edit-item-title">Éditer une fiche</h2>
+                <button class="modal-close" data-modal="modal-edit-item">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-edit-item">
+                    <input type="hidden" id="edit-item-id">
+                    
+                    <div class="form-group">
+                        <label for="edit-subject">Matière</label>
+                        <input type="text" id="edit-subject" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-title">Fiche/Chapitre</label>
+                        <input type="text" id="edit-title" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-status">Statut</label>
+                        <select id="edit-status" required>
+                            <option value="EN_ATTENTE">En attente</option>
+                            <option value="EN_COURS">En cours</option>
+                            <option value="EN_RELECTURE">En relecture</option>
+                            <option value="VALIDE">Validé</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-priority">Priorité</label>
+                        <select id="edit-priority" required>
+                            <option value="BASSE">Basse</option>
+                            <option value="MOYENNE">Moyenne</option>
+                            <option value="HAUTE">Haute</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-deadline">Deadline</label>
+                        <input type="date" id="edit-deadline">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-progress">Avancement (%)</label>
+                        <input type="number" id="edit-progress" min="0" max="100" required>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-visual"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-comment">Commentaire</label>
+                        <textarea id="edit-comment" rows="4"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="modal-edit-item">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assign Owner Modal -->
+    <div class="modal" id="modal-assign-owner">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Assigner un responsable</h2>
+                <button class="modal-close" data-modal="modal-assign-owner">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-assign-owner">
+                    <input type="hidden" id="assign-owner-subject-id">
+                    
+                    <div class="form-group">
+                        <label for="assign-owner-subject">Matière</label>
+                        <input type="text" id="assign-owner-subject" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assign-owner-name">Responsable</label>
+                        <input type="text" id="assign-owner-name" list="owner-suggestions" placeholder="Nom du responsable">
+                        <datalist id="owner-suggestions"></datalist>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="modal-assign-owner">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Assigner</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Set Deadline for Subject Modal -->
+    <div class="modal" id="modal-subject-deadline">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Définir une deadline pour la matière</h2>
+                <button class="modal-close" data-modal="modal-subject-deadline">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-subject-deadline">
+                    <input type="hidden" id="subject-deadline-subject-id">
+                    
+                    <div class="form-group">
+                        <label for="subject-deadline-subject">Matière</label>
+                        <input type="text" id="subject-deadline-subject" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="subject-deadline-date">Deadline</label>
+                        <input type="date" id="subject-deadline-date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="subject-deadline-apply-all" checked>
+                            Appliquer à toutes les fiches de cette matière
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-modal="modal-subject-deadline">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Appliquer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Subject Modal -->
+    <div class="modal" id="modal-delete-subject">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Supprimer une matière</h2>
+                <button class="modal-close" data-modal="modal-delete-subject">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer la matière <strong id="delete-subject-name"></strong> ?</p>
+                <p class="text-muted" style="margin-top: 1rem;">Cette action supprimera également toutes les fiches associées à cette matière.</p>
+                <input type="hidden" id="delete-subject-id">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-modal="modal-delete-subject">Annuler</button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-delete-subject">Supprimer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete University Modal -->
+    <div class="modal" id="modal-delete-university">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Supprimer une université</h2>
+                <button class="modal-close" data-modal="modal-delete-university">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer l'université <strong id="delete-university-name"></strong> ?</p>
+                <p class="text-muted" style="margin-top: 1rem;">Cette action supprimera également toutes les matières et fiches associées.</p>
+                <input type="hidden" id="delete-university-id">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-modal="modal-delete-university">Annuler</button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-delete-university">Supprimer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
