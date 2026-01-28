@@ -135,6 +135,11 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="edit-professor">Professeur amphi</label>
+                        <input type="text" id="edit-professor" placeholder="Nom du professeur d'amphi">
+                    </div>
+
+                    <div class="form-group">
                         <label for="edit-status">Statut</label>
                         <select id="edit-status" required>
                             <option value="EN_ATTENTE">En attente</option>
@@ -167,7 +172,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="edit-comment">Commentaire</label>
+                        <label for="edit-comment">Remarque</label>
                         <textarea id="edit-comment" rows="4"></textarea>
                     </div>
 
@@ -200,6 +205,20 @@
                         <label for="assign-owner-name">Responsable</label>
                         <input type="text" id="assign-owner-name" list="owner-suggestions" placeholder="Nom du responsable">
                         <datalist id="owner-suggestions"></datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assign-method">Méthode de refonte</label>
+                        <select id="assign-method">
+                            <option value="">(Non définie)</option>
+                            <option value="NB_AUDIO_AKV">NB + audio + AKV</option>
+                            <option value="NB_AUDIO_POLY">NB + audio + poly</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assign-remark">Remarque (matière)</label>
+                        <textarea id="assign-remark" rows="3"></textarea>
                     </div>
 
                     <div class="form-actions">

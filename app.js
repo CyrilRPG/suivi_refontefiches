@@ -219,12 +219,16 @@ const DataModel = {
                         {
                             id: subject1Id,
                             name: 'Biochimie',
-                            owner: 'Dr. Martin'
+                            owner: 'Dr. Martin',
+                            method: 'NB_AUDIO_AKV',
+                            remark: ''
                         },
                         {
                             id: subject2Id,
                             name: 'Anatomie',
-                            owner: 'Dr. Dupont'
+                            owner: 'Dr. Dupont',
+                            method: 'NB_AUDIO_POLY',
+                            remark: ''
                         }
                     ],
                     items: [
@@ -238,6 +242,7 @@ const DataModel = {
                             deadline: '',
                             progress: 0,
                             comment: '',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         },
                         {
@@ -250,6 +255,7 @@ const DataModel = {
                             deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                             progress: 45,
                             comment: 'En cours de rédaction',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         },
                         {
@@ -262,6 +268,7 @@ const DataModel = {
                             deadline: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                             progress: 90,
                             comment: '',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         },
                         {
@@ -274,6 +281,7 @@ const DataModel = {
                             deadline: '',
                             progress: 100,
                             comment: 'Validé par le comité',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         },
                         {
@@ -286,6 +294,7 @@ const DataModel = {
                             deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                             progress: 30,
                             comment: '',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         },
                         {
@@ -298,6 +307,7 @@ const DataModel = {
                             deadline: '',
                             progress: 0,
                             comment: '',
+                            professor: '',
                             updatedAt: new Date().toISOString()
                         }
                     ]
@@ -599,7 +609,9 @@ const ImportXlsx = {
                 subject = {
                     id: DataModel.generateId(),
                     name: item.subject.trim(),
-                    owner: ''
+                    owner: '',
+                    method: '',
+                    remark: ''
                 };
                 university.subjects.push(subject);
                 subjectMap.set(subjectName, subject);
@@ -618,6 +630,7 @@ const ImportXlsx = {
                     deadline: '',
                     progress: 0,
                     comment: '',
+                    professor: '',
                     updatedAt: new Date().toISOString()
                 });
                 existingKeys.add(key); // Ajouter immédiatement pour éviter les doublons dans le même import
@@ -977,6 +990,11 @@ const Render = {
                     const subjectName = subject ? subject.name : 'Inconnu';
                     const owner = subject ? subject.owner : '';
                     const progress = Computed.computeSubjectProgress(data, subjectId);
+                    const methodLabel = subject && subject.method === 'NB_AUDIO_AKV'
+                        ? 'NB + audio + AKV'
+                        : subject && subject.method === 'NB_AUDIO_POLY'
+                            ? 'NB + audio + poly'
+                            : '';
                     
                     return `
                         <div class="table-group">
@@ -985,6 +1003,8 @@ const Render = {
                                     <h3>${subjectName}</h3>
                                     <div class="table-group-info">
                                         ${owner ? `<span>👤 ${owner}</span>` : ''}
+                                        ${methodLabel ? `<span>⚙️ ${methodLabel}</span>` : ''}
+                                        ${subject && subject.remark ? `<span>📝 ${Render.escapeHtml(subject.remark)}</span>` : ''}
                                         <span>📊 ${progress}%</span>
                                         <span>📝 ${subjectItems.length} fiche${subjectItems.length > 1 ? 's' : ''}</span>
                                     </div>
@@ -994,10 +1014,10 @@ const Render = {
                                         <div class="progress-fill" style="width: ${progress}%"></div>
                                     </div>
                                     <div class="table-group-actions" style="display: flex; gap: var(--spacing-xs);">
-                                        <button class="btn btn-sm btn-secondary btn-action" data-action="subject-deadline" data-subject-id="${subjectId}" title="Définir deadline">
+                                        <button class="btn btn-sm btn-action" data-action="subject-deadline" data-subject-id="${subjectId}" title="Définir deadline">
                                             📅
                                         </button>
-                                        <button class="btn btn-sm btn-secondary btn-action" data-action="subject-owner" data-subject-id="${subjectId}" title="Assigner responsable">
+                                        <button class="btn btn-sm btn-action" data-action="subject-owner" data-subject-id="${subjectId}" title="Assigner responsable / méthode / remarque">
                                             👤
                                         </button>
                                         <button class="btn btn-sm btn-action-delete" data-action="subject-delete" data-subject-id="${subjectId}" title="Supprimer matière">
@@ -1012,11 +1032,13 @@ const Render = {
                                         <thead>
                                             <tr>
                                                 <th class="sortable ${sortColumn === 'title' ? `sort-${sortDirection}` : ''}" data-sort="title">Fiche/Chapitre</th>
+                                                <th>Prof. amphi</th>
                                                 <th class="sortable ${sortColumn === 'status' ? `sort-${sortDirection}` : ''}" data-sort="status">Statut</th>
                                                 <th class="sortable ${sortColumn === 'priority' ? `sort-${sortDirection}` : ''}" data-sort="priority">Priorité</th>
                                                 <th>Responsable</th>
                                                 <th class="sortable ${sortColumn === 'deadline' ? `sort-${sortDirection}` : ''}" data-sort="deadline">Deadline</th>
                                                 <th class="sortable ${sortColumn === 'progress' ? `sort-${sortDirection}` : ''}" data-sort="progress">Avancement</th>
+                                                <th>Remarque</th>
                                                 <th>Tag</th>
                                                 <th>Dernière MAJ</th>
                                                 <th>Actions</th>
@@ -1057,6 +1079,7 @@ const Render = {
         return `
             <tr>
                 <td>${this.escapeHtml(item.title)}</td>
+                <td>${item.professor ? this.escapeHtml(item.professor) : '-'}</td>
                 <td><span class="badge badge-status ${item.status.toLowerCase().replace('_', '-')}">${statusLabels[item.status]}</span></td>
                 <td><span class="badge badge-priority ${item.priority.toLowerCase()}">${priorityLabels[item.priority]}</span></td>
                 <td>${owner || '-'}</td>
@@ -1069,6 +1092,7 @@ const Render = {
                         <span style="font-size: 0.75rem; font-weight: 600; min-width: 35px;">${progress}%</span>
                     </div>
                 </td>
+                <td>${item.comment ? this.escapeHtml(item.comment) : '-'}</td>
                 <td>${isOverdue ? '<span class="badge badge-overdue">En retard</span>' : '-'}</td>
                 <td class="text-small text-muted">${updatedDate}</td>
                 <td>
@@ -1291,6 +1315,10 @@ const Render = {
         document.getElementById('edit-deadline').value = item.deadline || '';
         document.getElementById('edit-progress').value = item.progress || 0;
         document.getElementById('edit-comment').value = item.comment || '';
+        const professorInput = document.getElementById('edit-professor');
+        if (professorInput) {
+            professorInput.value = item.professor || '';
+        }
 
         // Mettre à jour la barre de progression visuelle
         const progress = item.status === 'VALIDE' ? 100 : (item.progress || 0);
@@ -1323,6 +1351,16 @@ const Render = {
         const datalist = document.getElementById('owner-suggestions');
         const owners = Selectors.getAllOwners(data);
         datalist.innerHTML = owners.map(o => `<option value="${o}">`).join('');
+
+        // Méthode + remarque matière
+        const methodSelect = document.getElementById('assign-method');
+        const remarkTextarea = document.getElementById('assign-remark');
+        if (methodSelect) {
+            methodSelect.value = subject.method || '';
+        }
+        if (remarkTextarea) {
+            remarkTextarea.value = subject.remark || '';
+        }
 
         modal.classList.add('active');
     },
@@ -1417,14 +1455,16 @@ const Actions = {
         return true;
     },
 
-    assignOwnerToSubject(subjectId, owner, data) {
+    assignOwnerToSubject(subjectId, owner, method, remark, data) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
         const subject = university.subjects.find(s => s.id === subjectId);
         if (!subject) return false;
 
-        subject.owner = owner.trim();
+        subject.owner = (owner || '').trim();
+        subject.method = method || '';
+        subject.remark = remark || '';
         Storage.saveData(data);
         return true;
     },
@@ -1788,7 +1828,8 @@ const App = {
                 priority: document.getElementById('edit-priority').value,
                 deadline: document.getElementById('edit-deadline').value,
                 progress: parseInt(document.getElementById('edit-progress').value) || 0,
-                comment: document.getElementById('edit-comment').value
+                comment: document.getElementById('edit-comment').value,
+                professor: document.getElementById('edit-professor').value
             };
 
             if (Actions.updateItem(itemId, this.data, updates)) {
