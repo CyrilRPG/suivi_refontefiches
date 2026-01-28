@@ -540,19 +540,18 @@ const ImportXlsx = {
                 let subject = this.normalizeText(row[0]);
                 const item = this.normalizeText(row[1]);
                 
-                // Ignorer la première ligne si c'est manifestement un header
-                // ex : "Matière", "Fiches de cours actualisées", etc.
-                if (index === 0) {
-                    const subjLower = (subject || '').toLowerCase();
-                    const itemLower = (item || '').toLowerCase();
-                    const looksLikeHeader =
-                        subjLower.includes('mati') ||
-                        subjLower.includes('matière') ||
-                        itemLower.includes('fiche') ||
-                        itemLower.includes('fiches de cours');
-                    if (looksLikeHeader) {
-                        return; // skip cette ligne
-                    }
+                // Ignorer les lignes d'en-tête / légendes (où on n'a pas une vraie matière+fiche)
+                const subjLower = (subject || '').toLowerCase();
+                const itemLower = (item || '').toLowerCase();
+                const looksLikeHeader =
+                    // Cas Excel typique : "Matière" / "Matiére" / "Matiere"
+                    subjLower.startsWith('mati') ||
+                    // Cellule fiche contenant "fiches de cours actualisées" ou "fiche(s)"
+                    itemLower.includes('fiches de cours actualisées') ||
+                    itemLower.startsWith('fiches de cours') ||
+                    (subjLower.includes('mati') && itemLower.includes('fiche'));
+                if (looksLikeHeader) {
+                    return; // ne pas créer de matière/fiches pour cette ligne
                 }
                 
                 // Si la matière est vide mais qu'on a une fiche, utiliser la matière précédente

@@ -3,32 +3,32 @@
    ============================================ */
 
 :root {
-    /* Brand Colors - thème Diploma Santé bleu / doré sombre */
+    /* Brand Colors - thème Diploma Santé bleu / doré, luminosité intermédiaire */
     --brand: #1d4ed8;          /* bleu principal */
     --brand-2: #0b2664;        /* bleu très sombre */
     --brand-light: #3b82f6;
-    --brand-lighter: #172554;  /* fond bleu profond */
+    --brand-lighter: #e0edff;  /* bleu très clair pour hovers */
     
     /* Accent or / Doré */
     --accent: #fbbf24;
     --accent-soft: #fef3c7;
     
-    /* Backgrounds - sombre élégant */
-    --bg: #020617;             /* body très sombre bleu nuit */
-    --bg-secondary: #0b1120;   /* blocs secondaires */
-    --surface: #020617;        /* cartes principales légèrement plus claires */
-    --surface-hover: #0f172a;
+    /* Backgrounds - clair mais pas blanc pur */
+    --bg: #f3f4f6;             /* fond général (gris très clair) */
+    --bg-secondary: #e5e7eb;   /* blocs secondaires */
+    --surface: #ffffff;        /* cartes / panneaux */
+    --surface-hover: #f9fafb;
     
     /* Text */
-    --text: #e5e7eb;
-    --text-secondary: #cbd5f5;
-    --text-muted: #9ca3af;
-    --text-light: #6b7280;
+    --text: #111827;
+    --text-secondary: #1f2937;
+    --text-muted: #6b7280;
+    --text-light: #9ca3af;
     
     /* Borders */
-    --border: #1e293b;
-    --border-light: #111827;
-    --border-dark: #334155;
+    --border: #d1d5db;
+    --border-light: #e5e7eb;
+    --border-dark: #9ca3af;
     
     /* Status Colors */
     --success: #22c55e;
