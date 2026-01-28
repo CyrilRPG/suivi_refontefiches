@@ -540,6 +540,21 @@ const ImportXlsx = {
                 let subject = this.normalizeText(row[0]);
                 const item = this.normalizeText(row[1]);
                 
+                // Ignorer la première ligne si c'est manifestement un header
+                // ex : "Matière", "Fiches de cours actualisées", etc.
+                if (index === 0) {
+                    const subjLower = (subject || '').toLowerCase();
+                    const itemLower = (item || '').toLowerCase();
+                    const looksLikeHeader =
+                        subjLower.includes('mati') ||
+                        subjLower.includes('matière') ||
+                        itemLower.includes('fiche') ||
+                        itemLower.includes('fiches de cours');
+                    if (looksLikeHeader) {
+                        return; // skip cette ligne
+                    }
+                }
+                
                 // Si la matière est vide mais qu'on a une fiche, utiliser la matière précédente
                 if (!subject && item && lastSubject) {
                     subject = lastSubject;
@@ -1861,14 +1876,18 @@ const App = {
             }
         });
 
-        // Form assignation responsable
+        // Form assignation responsable / méthode / remarque matière
         document.getElementById('form-assign-owner').addEventListener('submit', (e) => {
             e.preventDefault();
             const subjectId = document.getElementById('assign-owner-subject-id').value;
             const owner = document.getElementById('assign-owner-name').value;
+            const methodEl = document.getElementById('assign-method');
+            const remarkEl = document.getElementById('assign-remark');
+            const method = methodEl ? methodEl.value : '';
+            const remark = remarkEl ? remarkEl.value : '';
 
-            if (Actions.assignOwnerToSubject(subjectId, owner, this.data)) {
-                Storage.showToast('Responsable assigné', 'success');
+            if (Actions.assignOwnerToSubject(subjectId, owner, method, remark, this.data)) {
+                Storage.showToast('Responsable / méthode / remarque matière assignés', 'success');
                 document.getElementById('modal-assign-owner').classList.remove('active');
                 this.data = Storage.loadData();
                 this.render();

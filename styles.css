@@ -3,43 +3,47 @@
    ============================================ */
 
 :root {
-    /* Brand Colors */
-    --brand: #2563eb;
-    --brand-2: #1e40af;
+    /* Brand Colors - thème Diploma Santé bleu / doré sombre */
+    --brand: #1d4ed8;          /* bleu principal */
+    --brand-2: #0b2664;        /* bleu très sombre */
     --brand-light: #3b82f6;
-    --brand-lighter: #dbeafe;
+    --brand-lighter: #172554;  /* fond bleu profond */
     
-    /* Backgrounds */
-    --bg: #f8fafc;
-    --bg-secondary: #f1f5f9;
-    --surface: #ffffff;
-    --surface-hover: #f8fafc;
+    /* Accent or / Doré */
+    --accent: #fbbf24;
+    --accent-soft: #fef3c7;
+    
+    /* Backgrounds - sombre élégant */
+    --bg: #020617;             /* body très sombre bleu nuit */
+    --bg-secondary: #0b1120;   /* blocs secondaires */
+    --surface: #020617;        /* cartes principales légèrement plus claires */
+    --surface-hover: #0f172a;
     
     /* Text */
-    --text: #1e293b;
-    --text-secondary: #475569;
-    --text-muted: #64748b;
-    --text-light: #94a3b8;
+    --text: #e5e7eb;
+    --text-secondary: #cbd5f5;
+    --text-muted: #9ca3af;
+    --text-light: #6b7280;
     
     /* Borders */
-    --border: #e2e8f0;
-    --border-light: #f1f5f9;
-    --border-dark: #cbd5e1;
+    --border: #1e293b;
+    --border-light: #111827;
+    --border-dark: #334155;
     
     /* Status Colors */
-    --success: #10b981;
-    --success-light: #d1fae5;
-    --warning: #f59e0b;
-    --warning-light: #fef3c7;
-    --danger: #ef4444;
-    --danger-light: #fee2e2;
-    --info: #3b82f6;
-    --info-light: #dbeafe;
+    --success: #22c55e;
+    --success-light: rgba(34, 197, 94, 0.12);
+    --warning: #fbbf24;
+    --warning-light: rgba(251, 191, 36, 0.15);
+    --danger: #f97373;
+    --danger-light: rgba(248, 113, 113, 0.15);
+    --info: #38bdf8;
+    --info-light: rgba(56, 189, 248, 0.18);
     
     /* Priority Colors */
-    --priority-high: #dc2626;
-    --priority-medium: #f59e0b;
-    --priority-low: #6b7280;
+    --priority-high: #f97373;
+    --priority-medium: #fbbf24;
+    --priority-low: #9ca3af;
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
