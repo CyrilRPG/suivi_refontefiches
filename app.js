@@ -26,9 +26,9 @@ const DataService = {
                 supabase.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
                 supabase.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, subject_name_cache, updated_at, created_at').order('created_at', { ascending: true })
             ]);
-            if (uniRes.error) throw uniRes.error;
-            if (subjRes.error) throw subjRes.error;
-            if (itemRes.error) throw itemRes.error;
+            if (uniRes.error) throw new Error(uniRes.error?.message || 'universities');
+            if (subjRes.error) throw new Error(subjRes.error?.message || 'subjects');
+            if (itemRes.error) throw new Error(itemRes.error?.message || 'items');
 
             const universitiesRows = uniRes.data || [];
             const subjectsRows = subjRes.data || [];
@@ -1801,19 +1801,24 @@ const App = {
     tableSort: { column: null, direction: 'asc' },
 
     async init() {
-        // Charger les données : Supabase si dispo, sinon mémoire / défaut
-        const remote = await DataService.fetchAll();
-        if (remote && remote.universities && remote.universities.length >= 0) {
-            this.data = remote;
-            Storage.saveData(this.data);
-        } else {
+        try {
+            // Charger les données : Supabase si dispo, sinon mémoire / défaut
+            const remote = await DataService.fetchAll();
+            if (remote && remote.universities && remote.universities.length >= 0) {
+                this.data = remote;
+                Storage.saveData(this.data);
+            } else {
+                this.data = DataModel.initData();
+            }
+        } catch (e) {
+            console.error('App.init load error:', e);
             this.data = DataModel.initData();
         }
 
         // Rendre l'interface
         this.render();
 
-        // Attacher les event listeners
+        // Attacher les event listeners (toujours, même si le chargement a échoué)
         this.attachEventListeners();
 
         // Realtime : recharger les données quand la BDD change (collaboration)
@@ -1898,48 +1903,56 @@ const App = {
         });
 
         // Import Excel
-        document.getElementById('btn-import-excel').addEventListener('click', () => {
-            document.getElementById('modal-import-excel').classList.add('active');
-        });
+        const btnImportExcel = document.getElementById('btn-import-excel');
+        const modalImportExcel = document.getElementById('modal-import-excel');
+        if (btnImportExcel && modalImportExcel) {
+            btnImportExcel.addEventListener('click', () => {
+                modalImportExcel.classList.add('active');
+            });
+        }
 
         const fileInput = document.getElementById('file-input');
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                ImportXlsx.importXlsx(file);
-                fileInput.value = '';
-            }
-        });
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    ImportXlsx.importXlsx(file);
+                    fileInput.value = '';
+                }
+            });
+        }
 
         // Drag & drop Excel
         const dropZone = document.getElementById('drop-zone');
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+        if (dropZone) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
             });
-        });
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => {
-                dropZone.classList.add('drag-over');
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('drag-over');
+                });
             });
-        });
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => {
-                dropZone.classList.remove('drag-over');
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('drag-over');
+                });
             });
-        });
 
-        dropZone.addEventListener('drop', (e) => {
-            const file = e.dataTransfer.files[0];
-            if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-                ImportXlsx.importXlsx(file);
-            } else {
-                Storage.showToast('Veuillez déposer un fichier Excel (.xlsx)', 'error');
-            }
-        });
+            dropZone.addEventListener('drop', (e) => {
+                const file = e.dataTransfer.files[0];
+                if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                    ImportXlsx.importXlsx(file);
+                } else {
+                    Storage.showToast('Veuillez déposer un fichier Excel (.xlsx)', 'error');
+                }
+            });
+        }
 
         // Bouton de rafraîchissement (rechargera depuis Supabase si configuré)
         const refreshBtn = document.getElementById('btn-refresh');
