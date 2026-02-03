@@ -210,10 +210,10 @@ console.log('app.js: ImportXlsx prêt');
 // Supabase client (webapp collaborative)
 const SUPABASE_URL = 'https://irtzfvftvptkpoxbkhmi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_AYxzqfwYE31c21fuiWRrkw_P0LLhMTl';
-let supabase = null;
+let supabaseClient = null;
 try {
     if (window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 } catch (e) {
     console.error('Supabase init error:', e);
@@ -225,12 +225,12 @@ try {
 
 const DataService = {
     async fetchAll() {
-        if (!supabase) return null;
+        if (!supabaseClient) return null;
         try {
             const [uniRes, subjRes, itemRes] = await Promise.all([
-                supabase.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
-                supabase.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
-                supabase.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, subject_name_cache, updated_at, created_at').order('created_at', { ascending: true })
+                supabaseClient.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
+                supabaseClient.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
+                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, subject_name_cache, updated_at, created_at').order('created_at', { ascending: true })
             ]);
             if (uniRes.error) throw new Error(uniRes.error?.message || 'universities');
             if (subjRes.error) throw new Error(subjRes.error?.message || 'subjects');
@@ -313,9 +313,9 @@ const DataService = {
     },
 
     async upsertUniversity(id, name) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
-            const { error } = await supabase.from('universities').upsert({ id, name }, { onConflict: 'id' });
+            const { error } = await supabaseClient.from('universities').upsert({ id, name }, { onConflict: 'id' });
             return !error;
         } catch (e) {
             console.error('DataService.upsertUniversity error:', e);
@@ -324,9 +324,9 @@ const DataService = {
     },
 
     async deleteUniversity(id) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
-            const { error } = await supabase.from('universities').delete().eq('id', id);
+            const { error } = await supabaseClient.from('universities').delete().eq('id', id);
             return !error;
         } catch (e) {
             console.error('DataService.deleteUniversity error:', e);
@@ -335,9 +335,9 @@ const DataService = {
     },
 
     async upsertSubject(id, universityId, { name, owner, method, remark }) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
-            const { error } = await supabase.from('subjects').upsert({
+            const { error } = await supabaseClient.from('subjects').upsert({
                 id,
                 university_id: universityId,
                 name: name || '',
@@ -353,9 +353,9 @@ const DataService = {
     },
 
     async deleteSubject(id) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
-            const { error } = await supabase.from('subjects').delete().eq('id', id);
+            const { error } = await supabaseClient.from('subjects').delete().eq('id', id);
             return !error;
         } catch (e) {
             console.error('DataService.deleteSubject error:', e);
@@ -364,7 +364,7 @@ const DataService = {
     },
 
     async upsertItem(id, subjectId, payload) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
             const row = {
                 id,
@@ -379,7 +379,7 @@ const DataService = {
                 subject_name_cache: payload.subjectNameCache || '',
                 updated_at: new Date().toISOString()
             };
-            const { error } = await supabase.from('items').upsert(row, { onConflict: 'id' });
+            const { error } = await supabaseClient.from('items').upsert(row, { onConflict: 'id' });
             return !error;
         } catch (e) {
             console.error('DataService.upsertItem error:', e);
@@ -388,9 +388,9 @@ const DataService = {
     },
 
     async deleteItem(id) {
-        if (!supabase) return true;
+        if (!supabaseClient) return true;
         try {
-            const { error } = await supabase.from('items').delete().eq('id', id);
+            const { error } = await supabaseClient.from('items').delete().eq('id', id);
             return !error;
         } catch (e) {
             console.error('DataService.deleteItem error:', e);
@@ -1773,8 +1773,8 @@ const App = {
         this.attachEventListeners();
 
         // Realtime : recharger les données quand la BDD change (collaboration)
-        if (supabase && typeof supabase.channel === 'function') {
-            const channel = supabase
+        if (supabaseClient && typeof supabaseClient.channel === 'function') {
+            const channel = supabaseClient
                 .channel('dashboard-refonte')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'universities' }, () => {
                     if (typeof this.reloadData === 'function') this.reloadData();
