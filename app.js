@@ -2,9 +2,196 @@
 // CONSTANTS
 // ============================================
 
-const STORAGE_KEY = 'diploma_refonte_dashboard_v1';
 const STATUSES = ['EN_ATTENTE', 'EN_COURS', 'EN_RELECTURE', 'VALIDE'];
 const PRIORITIES = ['BASSE', 'MOYENNE', 'HAUTE'];
+
+// Supabase client (webapp collaborative)
+const SUPABASE_URL = 'https://irtzfvftvptkpoxbkhmi.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_AYxzqfwYE31c21fuiWRrkw_P0LLhMTl';
+let supabase = null;
+if (window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// ============================================
+// DATA SERVICE (Supabase)
+// ============================================
+
+const DataService = {
+    async fetchAll() {
+        if (!supabase) return null;
+        try {
+            const [uniRes, subjRes, itemRes] = await Promise.all([
+                supabase.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
+                supabase.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
+                supabase.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, subject_name_cache, updated_at, created_at').order('created_at', { ascending: true })
+            ]);
+            if (uniRes.error) throw uniRes.error;
+            if (subjRes.error) throw subjRes.error;
+            if (itemRes.error) throw itemRes.error;
+
+            const universitiesRows = uniRes.data || [];
+            const subjectsRows = subjRes.data || [];
+            const itemsRows = itemRes.data || [];
+
+            const subjectById = new Map();
+            subjectsRows.forEach(s => {
+                subjectById.set(s.id, {
+                    id: s.id,
+                    name: s.name || '',
+                    owner: s.owner || '',
+                    method: s.method || '',
+                    remark: s.remark || ''
+                });
+            });
+
+            const subjectsByUniversityId = new Map();
+            subjectsRows.forEach(s => {
+                const uid = s.university_id;
+                if (!subjectsByUniversityId.has(uid)) subjectsByUniversityId.set(uid, []);
+                subjectsByUniversityId.get(uid).push(subjectById.get(s.id));
+            });
+
+            const itemsBySubjectId = new Map();
+            itemsRows.forEach(i => {
+                const sid = i.subject_id;
+                if (!itemsBySubjectId.has(sid)) itemsBySubjectId.set(sid, []);
+                itemsBySubjectId.get(sid).push({
+                    id: i.id,
+                    subjectId: i.subject_id,
+                    subjectNameCache: i.subject_name_cache || '',
+                    title: i.title || '',
+                    status: i.status || 'EN_ATTENTE',
+                    priority: i.priority || 'MOYENNE',
+                    deadline: i.deadline || '',
+                    progress: i.progress != null ? i.progress : 0,
+                    comment: i.comment || '',
+                    professor: i.professor || '',
+                    updatedAt: i.updated_at || new Date().toISOString()
+                });
+            });
+
+            const universities = universitiesRows.map(u => {
+                const subjects = subjectsByUniversityId.get(u.id) || [];
+                const subjectIds = new Set(subjects.map(s => s.id));
+                const items = [];
+                subjects.forEach(s => {
+                    (itemsBySubjectId.get(s.id) || []).forEach(it => {
+                        it.subjectNameCache = it.subjectNameCache || s.name;
+                        items.push(it);
+                    });
+                });
+                return {
+                    id: u.id,
+                    name: u.name || '',
+                    subjects,
+                    items
+                };
+            });
+
+            const firstUniversityId = universities.length > 0 ? universities[0].id : null;
+            return {
+                version: 1,
+                updatedAt: new Date().toISOString(),
+                ui: {
+                    activeUniversityId: firstUniversityId,
+                    filters: { subjectId: '', owner: '', status: '', priority: '', overdueOnly: false, hasDeadline: null },
+                    view: 'table'
+                },
+                universities
+            };
+        } catch (err) {
+            console.error('DataService.fetchAll error:', err);
+            return null;
+        }
+    },
+
+    async upsertUniversity(id, name) {
+        if (!supabase) return true;
+        try {
+            const { error } = await supabase.from('universities').upsert({ id, name }, { onConflict: 'id' });
+            return !error;
+        } catch (e) {
+            console.error('DataService.upsertUniversity error:', e);
+            return false;
+        }
+    },
+
+    async deleteUniversity(id) {
+        if (!supabase) return true;
+        try {
+            const { error } = await supabase.from('universities').delete().eq('id', id);
+            return !error;
+        } catch (e) {
+            console.error('DataService.deleteUniversity error:', e);
+            return false;
+        }
+    },
+
+    async upsertSubject(id, universityId, { name, owner, method, remark }) {
+        if (!supabase) return true;
+        try {
+            const { error } = await supabase.from('subjects').upsert({
+                id,
+                university_id: universityId,
+                name: name || '',
+                owner: owner || '',
+                method: method || '',
+                remark: remark || ''
+            }, { onConflict: 'id' });
+            return !error;
+        } catch (e) {
+            console.error('DataService.upsertSubject error:', e);
+            return false;
+        }
+    },
+
+    async deleteSubject(id) {
+        if (!supabase) return true;
+        try {
+            const { error } = await supabase.from('subjects').delete().eq('id', id);
+            return !error;
+        } catch (e) {
+            console.error('DataService.deleteSubject error:', e);
+            return false;
+        }
+    },
+
+    async upsertItem(id, subjectId, payload) {
+        if (!supabase) return true;
+        try {
+            const row = {
+                id,
+                subject_id: subjectId,
+                title: payload.title || '',
+                status: payload.status || 'EN_ATTENTE',
+                priority: payload.priority || 'MOYENNE',
+                deadline: payload.deadline || null,
+                progress: payload.progress != null ? payload.progress : 0,
+                comment: payload.comment || '',
+                professor: payload.professor || '',
+                subject_name_cache: payload.subjectNameCache || '',
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('items').upsert(row, { onConflict: 'id' });
+            return !error;
+        } catch (e) {
+            console.error('DataService.upsertItem error:', e);
+            return false;
+        }
+    },
+
+    async deleteItem(id) {
+        if (!supabase) return true;
+        try {
+            const { error } = await supabase.from('items').delete().eq('id', id);
+            return !error;
+        } catch (e) {
+            console.error('DataService.deleteItem error:', e);
+            return false;
+        }
+    }
+};
 
 // ============================================
 // STORAGE MODULE
@@ -13,30 +200,26 @@ const PRIORITIES = ['BASSE', 'MOYENNE', 'HAUTE'];
 const Storage = {
     loadData() {
         try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (!stored) return null;
-            
-            const data = JSON.parse(stored);
-            
-            // Migration si nécessaire
-            if (data.version !== 1) {
-                return this.migrateData(data);
+            // Ne lit plus depuis localStorage : les données sont en mémoire (App.data)
+            if (typeof App !== 'undefined' && App.data) {
+                return App.data;
             }
-            
-            return data;
+            return null;
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('Error loading data from memory:', error);
             return null;
         }
     },
 
     saveData(data) {
         try {
-            data.updatedAt = new Date().toISOString();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            // Ne persiste plus dans localStorage : App.data est la source en mémoire
+            if (typeof App !== 'undefined') {
+                App.data = data;
+            }
             return true;
         } catch (error) {
-            console.error('Error saving data:', error);
+            console.error('Error saving data in memory:', error);
             return false;
         }
     },
@@ -685,9 +868,9 @@ const ImportXlsx = {
             let totalImported = 0;
             let totalCreated = 0;
 
-            sheetsData.forEach(sheetData => {
+            for (const sheetData of sheetsData) {
                 // Trouver ou créer l'université
-                let university = data.universities.find(u => 
+                let university = data.universities.find(u =>
                     u.name.toLowerCase() === sheetData.universityName.toLowerCase()
                 );
 
@@ -699,39 +882,50 @@ const ImportXlsx = {
                         items: []
                     };
                     data.universities.push(university);
+                    await DataService.upsertUniversity(university.id, university.name);
                 }
 
-                // Définir cette université comme active
                 data.ui.activeUniversityId = university.id;
 
-                // Préparer les items à importer
                 const itemsToImport = sheetData.rows.map(row => ({
                     subject: row.subject,
                     item: row.item
                 }));
 
-                // Dédoublonner et fusionner - passer directement l'université
                 const newItems = this.dedupeAndMerge(itemsToImport, data, university);
 
-                // Ajouter les nouveaux items
                 university.items.push(...newItems);
                 totalCreated += newItems.length;
                 totalImported += sheetData.rows.length;
-            });
+
+                // Persister les matières et fiches de cette université dans Supabase
+                for (const subject of university.subjects) {
+                    await DataService.upsertSubject(subject.id, university.id, {
+                        name: subject.name,
+                        owner: subject.owner || '',
+                        method: subject.method || '',
+                        remark: subject.remark || ''
+                    });
+                }
+                for (const item of university.items) {
+                    await DataService.upsertItem(item.id, item.subjectId, item);
+                }
+            }
 
             Storage.saveData(data);
-            
+
             Storage.showToast(
                 `Import réussi : ${totalCreated} nouvelles fiches créées sur ${totalImported} lignes`,
                 'success'
             );
 
             this.showLoading(false);
-            
-            // Recharger l'app
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+
+            if (typeof App !== 'undefined' && App.reloadData) {
+                await App.reloadData();
+            } else {
+                setTimeout(() => window.location.reload(), 500);
+            }
         } catch (error) {
             console.error('Error importing Excel:', error);
             Storage.showToast('Erreur lors de l\'import Excel', 'error');
@@ -1434,7 +1628,7 @@ const Render = {
 // ============================================
 
 const Actions = {
-    updateItem(itemId, data, updates) {
+    async updateItem(itemId, data, updates) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
@@ -1456,10 +1650,11 @@ const Actions = {
         item.updatedAt = new Date().toISOString();
 
         Storage.saveData(data);
-        return true;
+        const ok = await DataService.upsertItem(item.id, item.subjectId, item);
+        return ok !== false;
     },
 
-    deleteItem(itemId, data) {
+    async deleteItem(itemId, data) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
@@ -1468,10 +1663,11 @@ const Actions = {
 
         university.items.splice(index, 1);
         Storage.saveData(data);
-        return true;
+        const ok = await DataService.deleteItem(itemId);
+        return ok !== false;
     },
 
-    assignOwnerToSubject(subjectId, owner, method, remark, data) {
+    async assignOwnerToSubject(subjectId, owner, method, remark, data) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
@@ -1482,10 +1678,11 @@ const Actions = {
         subject.method = method || '';
         subject.remark = remark || '';
         Storage.saveData(data);
-        return true;
+        const ok = await DataService.upsertSubject(subjectId, university.id, { name: subject.name, owner: subject.owner, method: subject.method, remark: subject.remark });
+        return ok !== false;
     },
 
-    moveItemStatus(itemId, newStatus, data) {
+    async moveItemStatus(itemId, newStatus, data) {
         return this.updateItem(itemId, data, { status: newStatus });
     },
 
@@ -1513,7 +1710,7 @@ const Actions = {
         Storage.saveData(data);
     },
 
-    setDeadlineForSubject(subjectId, deadline, data) {
+    async setDeadlineForSubject(subjectId, deadline, data) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
@@ -1526,50 +1723,55 @@ const Actions = {
         });
 
         Storage.saveData(data);
+        for (const item of items) {
+            await DataService.upsertItem(item.id, item.subjectId, item);
+        }
         return true;
     },
 
-    deleteSubject(subjectId, data) {
+    async deleteSubject(subjectId, data) {
         const university = Selectors.getActiveUniversity(data);
         if (!university) return false;
 
-        // Supprimer la matière
         const subjectIndex = university.subjects.findIndex(s => s.id === subjectId);
         if (subjectIndex === -1) return false;
 
         university.subjects.splice(subjectIndex, 1);
-
-        // Supprimer toutes les fiches de cette matière
         university.items = university.items.filter(item => item.subjectId !== subjectId);
 
         Storage.saveData(data);
-        return true;
+        const ok = await DataService.deleteSubject(subjectId);
+        return ok !== false;
     },
 
-    deleteUniversity(universityId, data) {
+    async deleteUniversity(universityId, data) {
         const index = data.universities.findIndex(u => u.id === universityId);
         if (index === -1) return false;
 
         data.universities.splice(index, 1);
 
-        // Si c'était l'université active, sélectionner la première disponible
         if (data.ui.activeUniversityId === universityId) {
             data.ui.activeUniversityId = data.universities.length > 0 ? data.universities[0].id : '';
         }
 
         Storage.saveData(data);
-        return true;
+        const ok = await DataService.deleteUniversity(universityId);
+        return ok !== false;
     },
 
-    deleteAll(data) {
+    async deleteAll(data) {
         if (!data) {
             data = Storage.loadData();
         }
         if (!data) {
             return false;
         }
-        
-        // Réinitialiser complètement les données
+
+        const ids = (data.universities || []).map(u => u.id);
+        for (const id of ids) {
+            await DataService.deleteUniversity(id);
+        }
+
         data.universities = [];
         data.ui.activeUniversityId = '';
         data.ui.filters = {
@@ -1581,9 +1783,9 @@ const Actions = {
             hasDeadline: null
         };
         data.ui.view = 'table';
-        
-        const saved = Storage.saveData(data);
-        return saved;
+
+        Storage.saveData(data);
+        return true;
     }
 };
 
@@ -1598,15 +1800,50 @@ const App = {
     currentCalendarYear: new Date().getFullYear(),
     tableSort: { column: null, direction: 'asc' },
 
-    init() {
-        // Charger les données
-        this.data = DataModel.initData();
+    async init() {
+        // Charger les données : Supabase si dispo, sinon mémoire / défaut
+        const remote = await DataService.fetchAll();
+        if (remote && remote.universities && remote.universities.length >= 0) {
+            this.data = remote;
+            Storage.saveData(this.data);
+        } else {
+            this.data = DataModel.initData();
+        }
 
         // Rendre l'interface
         this.render();
 
         // Attacher les event listeners
         this.attachEventListeners();
+
+        // Realtime : recharger les données quand la BDD change (collaboration)
+        if (supabase && typeof supabase.channel === 'function') {
+            const channel = supabase
+                .channel('dashboard-refonte')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'universities' }, () => {
+                    if (typeof this.reloadData === 'function') this.reloadData();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'subjects' }, () => {
+                    if (typeof this.reloadData === 'function') this.reloadData();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () => {
+                    if (typeof this.reloadData === 'function') this.reloadData();
+                })
+                .subscribe();
+        }
+    },
+
+    async reloadData() {
+        const remote = await DataService.fetchAll();
+        if (remote && remote.universities) {
+            const previousUi = this.data && this.data.ui ? { ...this.data.ui } : null;
+            this.data = remote;
+            if (previousUi) {
+                this.data.ui = previousUi;
+            }
+            Storage.saveData(this.data);
+            this.render();
+        }
     },
 
     render() {
@@ -1704,56 +1941,21 @@ const App = {
             }
         });
 
-        // Export JSON
-        document.getElementById('btn-export-json').addEventListener('click', () => {
-            Storage.exportJSON();
-        });
-
-        // Import JSON
-        document.getElementById('btn-import-json').addEventListener('click', () => {
-            document.getElementById('modal-import-json').classList.add('active');
-        });
-
-        const jsonInput = document.getElementById('json-input');
-        jsonInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const mode = document.querySelector('input[name="import-mode"]:checked').value;
-                Storage.importJSON(file, mode);
-                jsonInput.value = '';
-            }
-        });
-
-        // Drag & drop JSON
-        const dropZoneJson = document.getElementById('drop-zone-json');
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZoneJson.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+        // Bouton de rafraîchissement (rechargera depuis Supabase si configuré)
+        const refreshBtn = document.getElementById('btn-refresh');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', async () => {
+                if (typeof App !== 'undefined' && App.reloadData) {
+                    try {
+                        await App.reloadData();
+                        Storage.showToast('Données rafraîchies', 'success');
+                    } catch (e) {
+                        console.error(e);
+                        Storage.showToast('Erreur lors du rafraîchissement', 'error');
+                    }
+                }
             });
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZoneJson.addEventListener(eventName, () => {
-                dropZoneJson.classList.add('drag-over');
-            });
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZoneJson.addEventListener(eventName, () => {
-                dropZoneJson.classList.remove('drag-over');
-            });
-        });
-
-        dropZoneJson.addEventListener('drop', (e) => {
-            const file = e.dataTransfer.files[0];
-            if (file && file.name.endsWith('.json')) {
-                const mode = document.querySelector('input[name="import-mode"]:checked').value;
-                Storage.importJSON(file, mode);
-            } else {
-                Storage.showToast('Veuillez déposer un fichier JSON', 'error');
-            }
-        });
+        }
 
         // Fermer modals
         document.querySelectorAll('.modal-close, [data-modal]').forEach(btn => {
@@ -1836,7 +2038,7 @@ const App = {
         });
 
         // Form édition fiche
-        document.getElementById('form-edit-item').addEventListener('submit', (e) => {
+        document.getElementById('form-edit-item').addEventListener('submit', async (e) => {
             e.preventDefault();
             const itemId = document.getElementById('edit-item-id').value;
             const updates = {
@@ -1848,7 +2050,8 @@ const App = {
                 professor: document.getElementById('edit-professor').value
             };
 
-            if (Actions.updateItem(itemId, this.data, updates)) {
+            const ok = await Actions.updateItem(itemId, this.data, updates);
+            if (ok) {
                 Storage.showToast('Fiche mise à jour', 'success');
                 document.getElementById('modal-edit-item').classList.remove('active');
                 this.data = Storage.loadData();
@@ -1878,7 +2081,7 @@ const App = {
         });
 
         // Form assignation responsable / méthode / remarque matière
-        document.getElementById('form-assign-owner').addEventListener('submit', (e) => {
+        document.getElementById('form-assign-owner').addEventListener('submit', async (e) => {
             e.preventDefault();
             const subjectId = document.getElementById('assign-owner-subject-id').value;
             const owner = document.getElementById('assign-owner-name').value;
@@ -1887,7 +2090,8 @@ const App = {
             const method = methodEl ? methodEl.value : '';
             const remark = remarkEl ? remarkEl.value : '';
 
-            if (Actions.assignOwnerToSubject(subjectId, owner, method, remark, this.data)) {
+            const ok = await Actions.assignOwnerToSubject(subjectId, owner, method, remark, this.data);
+            if (ok) {
                 Storage.showToast('Responsable / méthode / remarque matière assignés', 'success');
                 document.getElementById('modal-assign-owner').classList.remove('active');
                 this.data = Storage.loadData();
@@ -1898,7 +2102,7 @@ const App = {
         });
 
         // Actions sur les items (éditer, supprimer)
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', async (e) => {
             if (e.target.dataset.action === 'edit' || e.target.closest('[data-action="edit"]')) {
                 const itemId = e.target.dataset.itemId || e.target.closest('[data-action="edit"]')?.dataset.itemId;
                 if (itemId) {
@@ -1911,7 +2115,8 @@ const App = {
             } else if (e.target.dataset.action === 'delete' || e.target.closest('[data-action="delete"]')) {
                 const itemId = e.target.dataset.itemId || e.target.closest('[data-action="delete"]')?.dataset.itemId;
                 if (itemId && confirm('Êtes-vous sûr de vouloir supprimer cette fiche ?')) {
-                    if (Actions.deleteItem(itemId, this.data)) {
+                    const ok = await Actions.deleteItem(itemId, this.data);
+                    if (ok) {
                         Storage.showToast('Fiche supprimée', 'success');
                         this.data = Storage.loadData();
                         this.render();
@@ -1967,12 +2172,13 @@ const App = {
         });
 
         // Form deadline matière
-        document.getElementById('form-subject-deadline').addEventListener('submit', (e) => {
+        document.getElementById('form-subject-deadline').addEventListener('submit', async (e) => {
             e.preventDefault();
             const subjectId = document.getElementById('subject-deadline-subject-id').value;
             const deadline = document.getElementById('subject-deadline-date').value;
 
-            if (Actions.setDeadlineForSubject(subjectId, deadline, this.data)) {
+            const ok = await Actions.setDeadlineForSubject(subjectId, deadline, this.data);
+            if (ok) {
                 Storage.showToast('Deadline appliquée à toutes les fiches de la matière', 'success');
                 document.getElementById('modal-subject-deadline').classList.remove('active');
                 this.data = Storage.loadData();
@@ -1983,12 +2189,12 @@ const App = {
         });
 
         // Confirmation suppression matière
-        document.getElementById('btn-confirm-delete-subject').addEventListener('click', (e) => {
+        document.getElementById('btn-confirm-delete-subject').addEventListener('click', async (e) => {
             e.preventDefault();
             const subjectId = document.getElementById('delete-subject-id').value;
-            // Recharger les données à jour
             const currentData = Storage.loadData();
-            if (Actions.deleteSubject(subjectId, currentData)) {
+            const ok = await Actions.deleteSubject(subjectId, currentData);
+            if (ok) {
                 Storage.showToast('Matière supprimée', 'success');
                 document.getElementById('modal-delete-subject').classList.remove('active');
                 this.data = Storage.loadData();
@@ -1999,12 +2205,12 @@ const App = {
         });
 
         // Confirmation suppression université
-        document.getElementById('btn-confirm-delete-university').addEventListener('click', (e) => {
+        document.getElementById('btn-confirm-delete-university').addEventListener('click', async (e) => {
             e.preventDefault();
             const universityId = document.getElementById('delete-university-id').value;
-            // Recharger les données à jour
             const currentData = Storage.loadData();
-            if (Actions.deleteUniversity(universityId, currentData)) {
+            const ok = await Actions.deleteUniversity(universityId, currentData);
+            if (ok) {
                 Storage.showToast('Université supprimée', 'success');
                 document.getElementById('modal-delete-university').classList.remove('active');
                 this.data = Storage.loadData();
@@ -2017,19 +2223,17 @@ const App = {
         // Bouton tout supprimer
         const btnDeleteAll = document.getElementById('btn-delete-all');
         if (btnDeleteAll) {
-            btnDeleteAll.addEventListener('click', (e) => {
+            btnDeleteAll.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible.')) {
                     if (confirm('Confirmez une dernière fois : toutes les universités, matières et fiches seront supprimées.')) {
-                        // Recharger les données à jour
                         const currentData = Storage.loadData();
-                        if (currentData && Actions.deleteAll(currentData)) {
+                        const ok = currentData && (await Actions.deleteAll(currentData));
+                        if (ok) {
                             Storage.showToast('Toutes les données ont été supprimées', 'success');
-                            // Réinitialiser l'app
                             this.data = Storage.loadData();
-                            if (!this.data) {
-                                // Si plus de données, réinitialiser avec les données par défaut
+                            if (!this.data || !this.data.universities || this.data.universities.length === 0) {
                                 this.data = DataModel.initData();
                             }
                             this.render();
@@ -2113,7 +2317,7 @@ const App = {
             }
         });
 
-        document.addEventListener('drop', (e) => {
+        document.addEventListener('drop', async (e) => {
             if (e.target.classList.contains('kanban-cards') || e.target.closest('.kanban-cards')) {
                 e.preventDefault();
                 const dropZone = e.target.classList.contains('kanban-cards') ? e.target : e.target.closest('.kanban-cards');
@@ -2122,11 +2326,14 @@ const App = {
                 if (draggedItem) {
                     const itemId = draggedItem.dataset.itemId;
                     const newStatus = dropZone.dataset.dropZone;
-                    
-                    if (newStatus && Actions.moveItemStatus(itemId, newStatus, this.data)) {
-                        Storage.showToast('Statut mis à jour', 'success');
-                        this.data = Storage.loadData();
-                        this.renderView('kanban');
+
+                    if (newStatus) {
+                        const ok = await Actions.moveItemStatus(itemId, newStatus, this.data);
+                        if (ok) {
+                            Storage.showToast('Statut mis à jour', 'success');
+                            this.data = Storage.loadData();
+                            this.renderView('kanban');
+                        }
                     }
                 }
             }
@@ -2171,6 +2378,6 @@ const App = {
 // START APP
 // ============================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    App.init();
+document.addEventListener('DOMContentLoaded', async () => {
+    await App.init();
 });

@@ -6,6 +6,7 @@
     <title>Dashboard - Suivi de refonte des fiches de cours</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -16,14 +17,8 @@
                 <button class="btn btn-secondary" id="btn-import-excel">
                     <span>📊</span> Importer Excel
                 </button>
-                <button class="btn btn-secondary" id="btn-export-json">
-                    <span>💾</span> Exporter JSON
-                </button>
-                <button class="btn btn-secondary" id="btn-import-json">
-                    <span>📥</span> Importer JSON
-                </button>
-                <button class="btn btn-danger" id="btn-delete-all">
-                    <span>🗑️</span> Tout supprimer
+                <button class="btn btn-secondary" id="btn-refresh">
+                    <span>🔄</span> Rafraîchir
                 </button>
             </div>
         </div>
@@ -83,35 +78,7 @@
         </div>
     </div>
 
-    <!-- Import JSON Modal -->
-    <div class="modal" id="modal-import-json">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Importer un fichier JSON</h2>
-                <button class="modal-close" data-modal="modal-import-json">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>
-                        <input type="radio" name="import-mode" value="merge" checked>
-                        Fusionner (conserver les données existantes)
-                    </label>
-                    <label>
-                        <input type="radio" name="import-mode" value="replace">
-                        Remplacer (écraser les données existantes)
-                    </label>
-                </div>
-                <div class="drop-zone" id="drop-zone-json">
-                    <p>Glissez-déposez votre fichier .json ici</p>
-                    <p>ou</p>
-                    <input type="file" id="json-input" accept=".json" hidden>
-                    <button class="btn btn-primary" onclick="document.getElementById('json-input').click()">
-                        Sélectionner un fichier
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Import JSON Modal supprimé: la synchro passe par Supabase -->
 
     <!-- Edit Item Modal/Drawer -->
     <div class="modal drawer" id="modal-edit-item">
