@@ -1053,7 +1053,9 @@ input, select, textarea {
 }
 
 .modal.active {
-    display: flex;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .modal-content {
