@@ -7,6 +7,42 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+    // Import Excel minimal - défini inline pour fonctionner même si app.js échoue
+    window.handleExcelFile = function(file) {
+        if (!file) return;
+        // Essayer d'utiliser ImportXlsx si disponible
+        if (typeof ImportXlsx !== 'undefined' && ImportXlsx.importXlsx) {
+            ImportXlsx.importXlsx(file);
+            return;
+        }
+        // Sinon, faire un import minimal avec XLSX uniquement
+        if (typeof XLSX === 'undefined') {
+            alert('Bibliothèque Excel non chargée. Rechargez la page.');
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                var data = new Uint8Array(e.target.result);
+                var workbook = XLSX.read(data, { type: 'array' });
+                var msg = 'Feuilles trouvées: ' + workbook.SheetNames.join(', ') + '\n\n';
+                workbook.SheetNames.forEach(function(name) {
+                    var sheet = workbook.Sheets[name];
+                    var json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    msg += name + ': ' + json.length + ' lignes\n';
+                });
+                alert('Fichier lu avec succès!\n\n' + msg + '\nL\'application principale ne s\'est pas chargée correctement. Rechargez la page (Ctrl+F5).');
+                // Fermer la modale
+                var modal = document.getElementById('modal-import-excel');
+                if (modal) modal.classList.remove('active');
+            } catch (err) {
+                alert('Erreur lecture Excel: ' + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+    </script>
 </head>
 <body>
     <!-- Header -->
@@ -69,8 +105,8 @@
                     <p>Glissez-déposez votre fichier .xlsx ici</p>
                     <p>ou</p>
                     <input type="file" id="file-input" accept=".xlsx,.xls" hidden
-                        onchange="var f=this.files[0];if(f){if(window.handleExcelFile){window.handleExcelFile(f);}else{alert('Chargement en cours, réessayez dans 2 secondes.');}}this.value='';">
-                    <button type="button" class="btn btn-primary" id="btn-select-file" onclick="var i=document.getElementById('file-input');if(i)i.click();">
+                        onchange="var f=this.files[0];if(f)window.handleExcelFile(f);this.value='';">
+                    <button type="button" class="btn btn-primary" id="btn-select-file" onclick="document.getElementById('file-input').click();">
                         Sélectionner un fichier
                     </button>
                 </div>
