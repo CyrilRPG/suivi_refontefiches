@@ -168,12 +168,28 @@ const ImportXlsx = {
 
                 // Persister dans Supabase si disponible
                 if (typeof DataService !== 'undefined') {
+                    console.log('Import: Persistance Supabase pour', university.name, '- subjects:', university.subjects.length, 'items:', university.items.length);
+                    let subjectErrors = 0, itemErrors = 0;
                     for (const subject of university.subjects) {
-                        if (DataService.upsertSubject) await DataService.upsertSubject(subject.id, university.id, subject);
+                        if (DataService.upsertSubject) {
+                            const ok = await DataService.upsertSubject(subject.id, university.id, subject);
+                            if (!ok) subjectErrors++;
+                        }
                     }
                     for (const item of university.items) {
-                        if (DataService.upsertItem) await DataService.upsertItem(item.id, item.subjectId, item);
+                        if (DataService.upsertItem) {
+                            const ok = await DataService.upsertItem(item.id, item.subjectId, item);
+                            if (!ok) itemErrors++;
+                        }
                     }
+                    if (subjectErrors > 0 || itemErrors > 0) {
+                        console.warn('Import: Erreurs Supabase - subjects:', subjectErrors, 'items:', itemErrors);
+                        this.showToast(`Attention: ${subjectErrors + itemErrors} erreurs de synchronisation`, 'error');
+                    } else {
+                        console.log('Import: Toutes les données persistées avec succès');
+                    }
+                } else {
+                    console.warn('Import: DataService non disponible, données non persistées');
                 }
             }
 
@@ -214,6 +230,9 @@ let supabaseClient = null;
 try {
     if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client initialisé avec succès');
+    } else {
+        console.warn('window.supabase non disponible - mode hors ligne');
     }
 } catch (e) {
     console.error('Supabase init error:', e);
@@ -313,9 +332,14 @@ const DataService = {
     },
 
     async upsertUniversity(id, name) {
-        if (!supabaseClient) return true;
+        if (!supabaseClient) {
+            console.log('upsertUniversity: pas de client Supabase');
+            return true;
+        }
         try {
+            console.log('upsertUniversity:', id, name);
             const { error } = await supabaseClient.from('universities').upsert({ id, name }, { onConflict: 'id' });
+            if (error) console.error('upsertUniversity error:', error);
             return !error;
         } catch (e) {
             console.error('DataService.upsertUniversity error:', e);
@@ -335,8 +359,12 @@ const DataService = {
     },
 
     async upsertSubject(id, universityId, { name, owner, method, remark }) {
-        if (!supabaseClient) return true;
+        if (!supabaseClient) {
+            console.log('upsertSubject: pas de client Supabase');
+            return true;
+        }
         try {
+            console.log('upsertSubject:', id, 'univ:', universityId, 'name:', name);
             const { error } = await supabaseClient.from('subjects').upsert({
                 id,
                 university_id: universityId,
@@ -345,6 +373,7 @@ const DataService = {
                 method: method || '',
                 remark: remark || ''
             }, { onConflict: 'id' });
+            if (error) console.error('upsertSubject error:', error);
             return !error;
         } catch (e) {
             console.error('DataService.upsertSubject error:', e);
