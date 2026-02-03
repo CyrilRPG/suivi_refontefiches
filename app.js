@@ -5,22 +5,210 @@
 const STATUSES = ['EN_ATTENTE', 'EN_COURS', 'EN_RELECTURE', 'VALIDE'];
 const PRIORITIES = ['BASSE', 'MOYENNE', 'HAUTE'];
 
-// Gestionnaire import Excel : défini tout de suite pour que l'onchange du file input fonctionne
+// ============================================
+// IMPORT EXCEL MODULE (défini en premier pour toujours être disponible)
+// ============================================
+
+const ImportXlsx = {
+    normalizeText(str) {
+        if (!str || typeof str !== 'string') return '';
+        return str.trim().replace(/\s+/g, ' ');
+    },
+
+    generateId() {
+        return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    },
+
+    parseExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    resolve(workbook);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    },
+
+    extractSheetsData(workbook) {
+        const sheetsData = [];
+        workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            const rows = [];
+            let lastSubject = '';
+            jsonData.forEach((row, index) => {
+                let subject = this.normalizeText(row[0]);
+                const item = this.normalizeText(row[1]);
+                const subjLower = (subject || '').toLowerCase();
+                const itemLower = (item || '').toLowerCase();
+                const looksLikeHeader = subjLower.startsWith('mati') ||
+                    itemLower.includes('fiches de cours actualisées') ||
+                    itemLower.startsWith('fiches de cours') ||
+                    (subjLower.includes('mati') && itemLower.includes('fiche'));
+                if (looksLikeHeader) return;
+                if (!subject && item && lastSubject) subject = lastSubject;
+                if (subject) lastSubject = subject;
+                if (item && (subject || lastSubject)) {
+                    rows.push({ subject: subject || lastSubject, item, rowIndex: index + 1 });
+                }
+            });
+            if (rows.length > 0) {
+                sheetsData.push({ universityName: this.normalizeText(sheetName), rows });
+            }
+        });
+        return sheetsData;
+    },
+
+    showToast(message, type) {
+        const container = document.getElementById('toast-container');
+        if (!container) { alert(message); return; }
+        const toast = document.createElement('div');
+        toast.className = `toast ${type || 'info'}`;
+        toast.innerHTML = `<div class="toast-message">${message}</div>`;
+        container.appendChild(toast);
+        setTimeout(() => { toast.style.animation = 'toastSlideIn 0.3s ease-out reverse'; setTimeout(() => toast.remove(), 300); }, 3000);
+    },
+
+    showLoading(show) {
+        const overlay = document.getElementById('loading-overlay');
+        if (!overlay) return;
+        if (show) overlay.classList.add('active');
+        else overlay.classList.remove('active');
+    },
+
+    async importXlsx(file) {
+        try {
+            if (typeof XLSX === 'undefined') {
+                this.showToast('Bibliothèque Excel non chargée. Vérifiez votre connexion.', 'error');
+                return;
+            }
+            this.showLoading(true);
+            this.showToast('Import en cours...', 'info');
+
+            const workbook = await this.parseExcelFile(file);
+            const sheetsData = this.extractSheetsData(workbook);
+
+            if (sheetsData.length === 0) {
+                this.showToast('Aucune donnée valide trouvée (colonnes Matière / Fiche attendues)', 'error');
+                this.showLoading(false);
+                return;
+            }
+
+            // Récupérer ou créer les données
+            let data = (typeof App !== 'undefined' && App.data) ? App.data : null;
+            if (!data || !data.universities) {
+                data = {
+                    version: 1,
+                    updatedAt: new Date().toISOString(),
+                    ui: { activeUniversityId: null, filters: {}, view: 'table' },
+                    universities: []
+                };
+            }
+
+            let totalImported = 0;
+            let totalCreated = 0;
+
+            for (const sheetData of sheetsData) {
+                let university = data.universities.find(u => u.name.toLowerCase() === sheetData.universityName.toLowerCase());
+                if (!university) {
+                    university = { id: this.generateId(), name: sheetData.universityName, subjects: [], items: [] };
+                    data.universities.push(university);
+                    if (typeof DataService !== 'undefined' && DataService.upsertUniversity) {
+                        await DataService.upsertUniversity(university.id, university.name);
+                    }
+                }
+                data.ui.activeUniversityId = university.id;
+
+                const subjectMap = new Map();
+                (university.subjects || []).forEach(s => subjectMap.set(s.name.toLowerCase().trim(), s));
+                const existingKeys = new Set();
+                (university.items || []).forEach(i => existingKeys.add(`${i.subjectId}-${i.title}`));
+
+                for (const row of sheetData.rows) {
+                    const subjectName = row.subject.toLowerCase().trim();
+                    let subject = subjectMap.get(subjectName);
+                    if (!subject) {
+                        subject = { id: this.generateId(), name: row.subject.trim(), owner: '', method: '', remark: '' };
+                        university.subjects.push(subject);
+                        subjectMap.set(subjectName, subject);
+                    }
+                    const itemTitle = row.item.trim();
+                    const key = `${subject.id}-${itemTitle}`;
+                    if (!existingKeys.has(key)) {
+                        const newItem = {
+                            id: this.generateId(),
+                            subjectId: subject.id,
+                            subjectNameCache: subject.name,
+                            title: itemTitle,
+                            status: 'EN_ATTENTE',
+                            priority: 'MOYENNE',
+                            deadline: '',
+                            progress: 0,
+                            comment: '',
+                            professor: '',
+                            updatedAt: new Date().toISOString()
+                        };
+                        university.items.push(newItem);
+                        existingKeys.add(key);
+                        totalCreated++;
+                    }
+                    totalImported++;
+                }
+
+                // Persister dans Supabase si disponible
+                if (typeof DataService !== 'undefined') {
+                    for (const subject of university.subjects) {
+                        if (DataService.upsertSubject) await DataService.upsertSubject(subject.id, university.id, subject);
+                    }
+                    for (const item of university.items) {
+                        if (DataService.upsertItem) await DataService.upsertItem(item.id, item.subjectId, item);
+                    }
+                }
+            }
+
+            // Sauvegarder et mettre à jour l'affichage
+            if (typeof App !== 'undefined') {
+                App.data = data;
+                if (typeof Storage !== 'undefined' && Storage.saveData) Storage.saveData(data);
+                if (App.render) App.render();
+            }
+
+            this.showToast(`Import réussi : ${totalCreated} nouvelles fiches créées sur ${totalImported} lignes`, 'success');
+            this.showLoading(false);
+
+            const modalImport = document.getElementById('modal-import-excel');
+            if (modalImport) modalImport.classList.remove('active');
+        } catch (error) {
+            console.error('Error importing Excel:', error);
+            this.showToast('Erreur import Excel: ' + (error && error.message ? error.message : 'voir console'), 'error');
+            this.showLoading(false);
+        }
+    }
+};
+
+// Gestionnaire global pour l'import Excel
 window.handleExcelFile = function (file) {
     if (!file) return;
-    if (typeof ImportXlsx !== 'undefined' && ImportXlsx.importXlsx) {
-        ImportXlsx.importXlsx(file);
-    } else {
-        alert('Chargement en cours, réessayez dans 2 secondes.');
-    }
+    ImportXlsx.importXlsx(file);
 };
 
 // Supabase client (webapp collaborative)
 const SUPABASE_URL = 'https://irtzfvftvptkpoxbkhmi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_AYxzqfwYE31c21fuiWRrkw_P0LLhMTl';
 let supabase = null;
-if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+try {
+    if (window.supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+} catch (e) {
+    console.error('Supabase init error:', e);
 }
 
 // ============================================
@@ -689,276 +877,6 @@ const Computed = {
             .sort((a, b) => a.deadlineDate - b.deadlineDate);
 
         return items.length > 0 ? items[0] : null;
-    }
-};
-
-// ============================================
-// IMPORT EXCEL MODULE
-// ============================================
-
-const ImportXlsx = {
-    normalizeText(str) {
-        if (!str || typeof str !== 'string') return '';
-        return str.trim().replace(/\s+/g, ' ');
-    },
-
-    parseExcelFile(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    resolve(workbook);
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(file);
-        });
-    },
-
-    extractSheetsData(workbook) {
-        const sheetsData = [];
-        
-        workbook.SheetNames.forEach(sheetName => {
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            
-            const rows = [];
-            let lastSubject = ''; // Garder en mémoire la dernière matière
-            
-            jsonData.forEach((row, index) => {
-                // Colonne A = matière (index 0), Colonne B = fiche (index 1)
-                let subject = this.normalizeText(row[0]);
-                const item = this.normalizeText(row[1]);
-                
-                // Ignorer les lignes d'en-tête / légendes (où on n'a pas une vraie matière+fiche)
-                const subjLower = (subject || '').toLowerCase();
-                const itemLower = (item || '').toLowerCase();
-                const looksLikeHeader =
-                    // Cas Excel typique : "Matière" / "Matiére" / "Matiere"
-                    subjLower.startsWith('mati') ||
-                    // Cellule fiche contenant "fiches de cours actualisées" ou "fiche(s)"
-                    itemLower.includes('fiches de cours actualisées') ||
-                    itemLower.startsWith('fiches de cours') ||
-                    (subjLower.includes('mati') && itemLower.includes('fiche'));
-                if (looksLikeHeader) {
-                    return; // ne pas créer de matière/fiches pour cette ligne
-                }
-                
-                // Si la matière est vide mais qu'on a une fiche, utiliser la matière précédente
-                if (!subject && item && lastSubject) {
-                    subject = lastSubject;
-                }
-                
-                // Si on a une nouvelle matière, la mémoriser
-                if (subject) {
-                    lastSubject = subject;
-                }
-                
-                // Ignorer seulement si la fiche est vide (la matière peut être vide si c'est la même que précédemment)
-                if (item && (subject || lastSubject)) {
-                    const finalSubject = subject || lastSubject;
-                    rows.push({
-                        subject: finalSubject,
-                        item,
-                        rowIndex: index + 1
-                    });
-                }
-            });
-            
-            if (rows.length > 0) {
-                sheetsData.push({
-                    universityName: this.normalizeText(sheetName),
-                    rows
-                });
-            }
-        });
-        
-        return sheetsData;
-    },
-
-    dedupeAndMerge(items, existingData, targetUniversity) {
-        // Utiliser l'université passée en paramètre ou la trouver dans les données
-        let university = targetUniversity;
-        if (!university && existingData) {
-            const activeUniversityId = existingData.ui?.activeUniversityId;
-            if (activeUniversityId) {
-                university = existingData.universities?.find(u => u.id === activeUniversityId);
-            }
-        }
-        
-        if (!university) return [];
-
-        // Initialiser si nécessaire
-        if (!university.items) university.items = [];
-        if (!university.subjects) university.subjects = [];
-
-        const existingKeys = new Set();
-        university.items.forEach(item => {
-            const key = `${item.subjectId}-${item.title}`;
-            existingKeys.add(key);
-        });
-
-        const subjectMap = new Map();
-        university.subjects.forEach(s => {
-            subjectMap.set(s.name.toLowerCase().trim(), s);
-        });
-
-        const newItems = [];
-        items.forEach(item => {
-            const subjectName = item.subject.toLowerCase().trim();
-            let subject = subjectMap.get(subjectName);
-            
-            if (!subject) {
-                // Créer nouvelle matière
-                subject = {
-                    id: DataModel.generateId(),
-                    name: item.subject.trim(),
-                    owner: '',
-                    method: '',
-                    remark: ''
-                };
-                university.subjects.push(subject);
-                subjectMap.set(subjectName, subject);
-            }
-
-            const itemTitle = item.item.trim();
-            const key = `${subject.id}-${itemTitle}`;
-            if (!existingKeys.has(key)) {
-                newItems.push({
-                    id: DataModel.generateId(),
-                    subjectId: subject.id,
-                    subjectNameCache: subject.name,
-                    title: itemTitle,
-                    status: 'EN_ATTENTE',
-                    priority: 'MOYENNE',
-                    deadline: '',
-                    progress: 0,
-                    comment: '',
-                    professor: '',
-                    updatedAt: new Date().toISOString()
-                });
-                existingKeys.add(key); // Ajouter immédiatement pour éviter les doublons dans le même import
-            } else {
-                // Doublon détecté : fusionner (conserver existant, mettre à jour champs vides)
-                const existingItem = university.items.find(i => 
-                    i.subjectId === subject.id && i.title === itemTitle
-                );
-                if (existingItem) {
-                    // Pour l'instant, on conserve l'existant tel quel
-                    // On pourrait mettre à jour certains champs si nécessaire
-                    existingItem.updatedAt = new Date().toISOString();
-                }
-            }
-        });
-
-        return newItems;
-    },
-
-    async importXlsx(file) {
-        try {
-            if (typeof XLSX === 'undefined') {
-                Storage.showToast('Bibliothèque Excel non chargée. Vérifiez votre connexion.', 'error');
-                return;
-            }
-            this.showLoading(true);
-            Storage.showToast('Import en cours...', 'info');
-
-            const workbook = await this.parseExcelFile(file);
-            const sheetsData = this.extractSheetsData(workbook);
-
-            if (sheetsData.length === 0) {
-                Storage.showToast('Aucune donnée valide trouvée dans le fichier (colonnes Matière / Fiche attendues)', 'error');
-                this.showLoading(false);
-                return;
-            }
-
-            let data = Storage.loadData();
-            if (!data) {
-                data = DataModel.getDefaultData();
-            }
-
-            let totalImported = 0;
-            let totalCreated = 0;
-
-            for (const sheetData of sheetsData) {
-                // Trouver ou créer l'université
-                let university = data.universities.find(u =>
-                    u.name.toLowerCase() === sheetData.universityName.toLowerCase()
-                );
-
-                if (!university) {
-                    university = {
-                        id: DataModel.generateId(),
-                        name: sheetData.universityName,
-                        subjects: [],
-                        items: []
-                    };
-                    data.universities.push(university);
-                    await DataService.upsertUniversity(university.id, university.name);
-                }
-
-                data.ui.activeUniversityId = university.id;
-
-                const itemsToImport = sheetData.rows.map(row => ({
-                    subject: row.subject,
-                    item: row.item
-                }));
-
-                const newItems = this.dedupeAndMerge(itemsToImport, data, university);
-
-                university.items.push(...newItems);
-                totalCreated += newItems.length;
-                totalImported += sheetData.rows.length;
-
-                // Persister les matières et fiches de cette université dans Supabase
-                for (const subject of university.subjects) {
-                    await DataService.upsertSubject(subject.id, university.id, {
-                        name: subject.name,
-                        owner: subject.owner || '',
-                        method: subject.method || '',
-                        remark: subject.remark || ''
-                    });
-                }
-                for (const item of university.items) {
-                    await DataService.upsertItem(item.id, item.subjectId, item);
-                }
-            }
-
-            Storage.saveData(data);
-
-            Storage.showToast(
-                `Import réussi : ${totalCreated} nouvelles fiches créées sur ${totalImported} lignes`,
-                'success'
-            );
-
-            this.showLoading(false);
-
-            // Fermer la modale et rafraîchir l'affichage avec les données importées (sans refetch Supabase qui pourrait écraser)
-            const modalImport = document.getElementById('modal-import-excel');
-            if (modalImport) modalImport.classList.remove('active');
-            if (typeof App !== 'undefined' && App.data) {
-                App.data = data;
-                if (App.render) App.render();
-            }
-        } catch (error) {
-            console.error('Error importing Excel:', error);
-            Storage.showToast('Erreur lors de l\'import Excel: ' + (error && error.message ? error.message : 'voir console'), 'error');
-            this.showLoading(false);
-        }
-    },
-
-    showLoading(show) {
-        const overlay = document.getElementById('loading-overlay');
-        if (!overlay) return;
-        if (show) {
-            overlay.classList.add('active');
-        } else {
-            overlay.classList.remove('active');
-        }
     }
 };
 
