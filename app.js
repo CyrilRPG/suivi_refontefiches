@@ -256,9 +256,9 @@ const DataService = {
         if (!supabaseClient) return null;
         try {
             const [uniRes, subjRes, itemRes] = await Promise.all([
-                supabaseClient.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
-                supabaseClient.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
-                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, updated_at').order('updated_at', { ascending: true })
+                supabaseClient.from('universities').select('id, name'),
+                supabaseClient.from('subjects').select('id, university_id, name, owner, method, remark'),
+                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, updated_at')
             ]);
             if (uniRes.error) throw new Error(uniRes.error?.message || 'universities');
             if (subjRes.error) throw new Error(subjRes.error?.message || 'subjects');
@@ -359,6 +359,16 @@ const DataService = {
     async deleteUniversity(id) {
         if (!supabaseClient) return true;
         try {
+            // 1. Trouver tous les subjects de cette université
+            const { data: subjects } = await supabaseClient.from('subjects').select('id').eq('university_id', id);
+            if (subjects && subjects.length > 0) {
+                const subjectIds = subjects.map(s => s.id);
+                // 2. Supprimer tous les items de ces subjects
+                await supabaseClient.from('items').delete().in('subject_id', subjectIds);
+                // 3. Supprimer tous les subjects
+                await supabaseClient.from('subjects').delete().in('id', subjectIds);
+            }
+            // 4. Supprimer l'université
             const { error } = await supabaseClient.from('universities').delete().eq('id', id);
             return !error;
         } catch (e) {
@@ -393,6 +403,9 @@ const DataService = {
     async deleteSubject(id) {
         if (!supabaseClient) return true;
         try {
+            // 1. Supprimer tous les items de ce subject
+            await supabaseClient.from('items').delete().eq('subject_id', id);
+            // 2. Supprimer le subject
             const { error } = await supabaseClient.from('subjects').delete().eq('id', id);
             return !error;
         } catch (e) {
