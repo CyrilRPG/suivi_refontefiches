@@ -5,6 +5,10 @@
 const STATUSES = ['EN_ATTENTE', 'EN_COURS', 'EN_RELECTURE', 'VALIDE'];
 const PRIORITIES = ['BASSE', 'MOYENNE', 'HAUTE'];
 
+// Marquer que le script a commencé
+window._appJsLoading = true;
+console.log('app.js: début du chargement');
+
 // ============================================
 // IMPORT EXCEL MODULE (défini en premier pour toujours être disponible)
 // ============================================
@@ -198,6 +202,10 @@ window.handleExcelFile = function (file) {
     if (!file) return;
     ImportXlsx.importXlsx(file);
 };
+
+// Marquer que ImportXlsx est prêt
+window._importXlsxReady = true;
+console.log('app.js: ImportXlsx prêt');
 
 // Supabase client (webapp collaborative)
 const SUPABASE_URL = 'https://irtzfvftvptkpoxbkhmi.supabase.co';
@@ -2334,6 +2342,18 @@ const App = {
 // START APP
 // ============================================
 
+// Marquer que tout le fichier a été parsé
+window._appJsFullyLoaded = true;
+console.log('app.js: fichier entièrement chargé');
+
 document.addEventListener('DOMContentLoaded', async () => {
-    await App.init();
+    console.log('app.js: DOMContentLoaded, démarrage App.init()');
+    try {
+        await App.init();
+        console.log('app.js: App.init() terminé avec succès');
+        window._appReady = true;
+    } catch (e) {
+        console.error('app.js: Erreur dans App.init():', e);
+        alert('Erreur initialisation app: ' + e.message);
+    }
 });

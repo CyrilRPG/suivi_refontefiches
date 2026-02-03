@@ -11,14 +11,24 @@
     // Import Excel minimal - défini inline pour fonctionner même si app.js échoue
     window.handleExcelFile = function(file) {
         if (!file) return;
+        
+        // Debug: afficher l'état du chargement
+        var debugInfo = 'Debug:\n';
+        debugInfo += '_appJsLoading: ' + (window._appJsLoading ? 'oui' : 'non') + '\n';
+        debugInfo += '_importXlsxReady: ' + (window._importXlsxReady ? 'oui' : 'non') + '\n';
+        debugInfo += '_appJsFullyLoaded: ' + (window._appJsFullyLoaded ? 'oui' : 'non') + '\n';
+        debugInfo += '_appReady: ' + (window._appReady ? 'oui' : 'non') + '\n';
+        debugInfo += 'ImportXlsx défini: ' + (typeof ImportXlsx !== 'undefined' ? 'oui' : 'non') + '\n';
+        
         // Essayer d'utiliser ImportXlsx si disponible
-        if (typeof ImportXlsx !== 'undefined' && ImportXlsx.importXlsx) {
+        if (window._importXlsxReady && typeof ImportXlsx !== 'undefined' && ImportXlsx.importXlsx) {
             ImportXlsx.importXlsx(file);
             return;
         }
+        
         // Sinon, faire un import minimal avec XLSX uniquement
         if (typeof XLSX === 'undefined') {
-            alert('Bibliothèque Excel non chargée. Rechargez la page.');
+            alert('Bibliothèque Excel non chargée.\n\n' + debugInfo);
             return;
         }
         var reader = new FileReader();
@@ -32,12 +42,11 @@
                     var json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                     msg += name + ': ' + json.length + ' lignes\n';
                 });
-                alert('Fichier lu avec succès!\n\n' + msg + '\nL\'application principale ne s\'est pas chargée correctement. Rechargez la page (Ctrl+F5).');
-                // Fermer la modale
+                alert('Fichier lu mais app.js non chargé!\n\n' + msg + '\n' + debugInfo + '\nOuvrez la console (F12) pour voir les erreurs.');
                 var modal = document.getElementById('modal-import-excel');
                 if (modal) modal.classList.remove('active');
             } catch (err) {
-                alert('Erreur lecture Excel: ' + err.message);
+                alert('Erreur lecture Excel: ' + err.message + '\n\n' + debugInfo);
             }
         };
         reader.readAsArrayBuffer(file);
