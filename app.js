@@ -380,6 +380,9 @@ const DataService = {
                 updated_at: new Date().toISOString()
             };
             const { error } = await supabaseClient.from('items').upsert(row, { onConflict: 'id' });
+            if (error) {
+                console.error('DataService.upsertItem Supabase error:', error);
+            }
             return !error;
         } catch (e) {
             console.error('DataService.upsertItem error:', e);
@@ -2014,14 +2017,16 @@ const App = {
                 professor: document.getElementById('edit-professor').value
             };
 
-            const ok = await Actions.updateItem(itemId, this.data, updates);
-            if (ok) {
-                Storage.showToast('Fiche mise à jour', 'success');
+            try {
+                const ok = await Actions.updateItem(itemId, this.data, updates);
+                // Mettre à jour l'affichage même si Supabase échoue (données locales sauvegardées)
+                Storage.showToast(ok ? 'Fiche mise à jour' : 'Fiche mise à jour (hors ligne)', ok ? 'success' : 'info');
                 document.getElementById('modal-edit-item').classList.remove('active');
                 this.data = Storage.loadData();
                 this.render();
-            } else {
-                Storage.showToast('Erreur lors de la mise à jour', 'error');
+            } catch (err) {
+                console.error('Erreur updateItem:', err);
+                Storage.showToast('Erreur: ' + (err.message || 'voir console'), 'error');
             }
         });
 
