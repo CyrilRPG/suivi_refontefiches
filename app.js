@@ -419,7 +419,7 @@ const DataService = {
             };
             const { error } = await supabaseClient.from('items').upsert(row, { onConflict: 'id' });
             if (error) {
-                console.error('DataService.upsertItem Supabase error:', error);
+                console.error('DataService.upsertItem Supabase error:', error.message, error.details, error.hint, 'Row:', JSON.stringify(row));
             }
             return !error;
         } catch (e) {
