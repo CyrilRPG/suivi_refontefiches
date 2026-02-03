@@ -1008,7 +1008,9 @@ const Render = {
                         ? 'NB + audio + AKV'
                         : subject && subject.method === 'NB_AUDIO_POLY'
                             ? 'NB + audio + poly'
-                            : '';
+                            : subject && subject.method === 'NB_AUDIO_POLY_ACC'
+                                ? 'NB + audio + poly + ACC'
+                                : '';
                     
                     return `
                         <div class="table-group">
