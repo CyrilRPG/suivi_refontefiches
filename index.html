@@ -68,8 +68,9 @@
                 <div class="drop-zone" id="drop-zone">
                     <p>Glissez-déposez votre fichier .xlsx ici</p>
                     <p>ou</p>
-                    <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
-                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                    <input type="file" id="file-input" accept=".xlsx,.xls" hidden
+                        onchange="var f=this.files[0];if(f&&typeof ImportXlsx!=='undefined'){ImportXlsx.importXlsx(f);}this.value='';">
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click()">
                         Sélectionner un fichier
                     </button>
                 </div>

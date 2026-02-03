@@ -353,6 +353,7 @@ const Storage = {
 
     showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
+        if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.innerHTML = `<div class="toast-message">${message}</div>`;
@@ -921,10 +922,12 @@ const ImportXlsx = {
 
             this.showLoading(false);
 
-            if (typeof App !== 'undefined' && App.reloadData) {
-                await App.reloadData();
-            } else {
-                setTimeout(() => window.location.reload(), 500);
+            // Fermer la modale et rafraîchir l'affichage avec les données importées (sans refetch Supabase qui pourrait écraser)
+            const modalImport = document.getElementById('modal-import-excel');
+            if (modalImport) modalImport.classList.remove('active');
+            if (typeof App !== 'undefined' && App.data) {
+                App.data = data;
+                if (App.render) App.render();
             }
         } catch (error) {
             console.error('Error importing Excel:', error);
@@ -935,6 +938,7 @@ const ImportXlsx = {
 
     showLoading(show) {
         const overlay = document.getElementById('loading-overlay');
+        if (!overlay) return;
         if (show) {
             overlay.classList.add('active');
         } else {
@@ -1802,6 +1806,12 @@ const App = {
 
     async init() {
         try {
+            // Ne pas écraser si l'import Excel a déjà rempli App.data
+            if (this.data && this.data.universities && this.data.universities.length > 0) {
+                this.render();
+                this.attachEventListeners();
+                return;
+            }
             // Charger les données : Supabase si dispo, sinon mémoire / défaut
             const remote = await DataService.fetchAll();
             if (remote && remote.universities && remote.universities.length >= 0) {
