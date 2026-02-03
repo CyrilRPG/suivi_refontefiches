@@ -69,8 +69,8 @@
                     <p>Glissez-déposez votre fichier .xlsx ici</p>
                     <p>ou</p>
                     <input type="file" id="file-input" accept=".xlsx,.xls" hidden
-                        onchange="var f=this.files[0];if(f&&typeof ImportXlsx!=='undefined'){ImportXlsx.importXlsx(f);}this.value='';">
-                    <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                        onchange="var f=this.files[0];if(f){if(window.handleExcelFile){window.handleExcelFile(f);}else{alert('Chargement en cours, réessayez dans 2 secondes.');}}this.value='';">
+                    <button type="button" class="btn btn-primary" id="btn-select-file" onclick="var i=document.getElementById('file-input');if(i)i.click();">
                         Sélectionner un fichier
                     </button>
                 </div>

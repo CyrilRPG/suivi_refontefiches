@@ -850,13 +850,18 @@ const ImportXlsx = {
 
     async importXlsx(file) {
         try {
+            if (typeof XLSX === 'undefined') {
+                Storage.showToast('Bibliothèque Excel non chargée. Vérifiez votre connexion.', 'error');
+                return;
+            }
             this.showLoading(true);
-            
+            Storage.showToast('Import en cours...', 'info');
+
             const workbook = await this.parseExcelFile(file);
             const sheetsData = this.extractSheetsData(workbook);
-            
+
             if (sheetsData.length === 0) {
-                Storage.showToast('Aucune donnée valide trouvée dans le fichier', 'error');
+                Storage.showToast('Aucune donnée valide trouvée dans le fichier (colonnes Matière / Fiche attendues)', 'error');
                 this.showLoading(false);
                 return;
             }
@@ -931,7 +936,7 @@ const ImportXlsx = {
             }
         } catch (error) {
             console.error('Error importing Excel:', error);
-            Storage.showToast('Erreur lors de l\'import Excel', 'error');
+            Storage.showToast('Erreur lors de l\'import Excel: ' + (error && error.message ? error.message : 'voir console'), 'error');
             this.showLoading(false);
         }
     },
@@ -945,6 +950,12 @@ const ImportXlsx = {
             overlay.classList.remove('active');
         }
     }
+};
+
+// Gestionnaire global pour l'import Excel (appelé depuis l'onchange inline du file input)
+window.handleExcelFile = function (file) {
+    if (!file || typeof ImportXlsx === 'undefined' || !ImportXlsx.importXlsx) return;
+    ImportXlsx.importXlsx(file);
 };
 
 // ============================================
