@@ -5,6 +5,16 @@
 const STATUSES = ['EN_ATTENTE', 'EN_COURS', 'EN_RELECTURE', 'VALIDE'];
 const PRIORITIES = ['BASSE', 'MOYENNE', 'HAUTE'];
 
+// Gestionnaire import Excel : défini tout de suite pour que l'onchange du file input fonctionne
+window.handleExcelFile = function (file) {
+    if (!file) return;
+    if (typeof ImportXlsx !== 'undefined' && ImportXlsx.importXlsx) {
+        ImportXlsx.importXlsx(file);
+    } else {
+        alert('Chargement en cours, réessayez dans 2 secondes.');
+    }
+};
+
 // Supabase client (webapp collaborative)
 const SUPABASE_URL = 'https://irtzfvftvptkpoxbkhmi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_AYxzqfwYE31c21fuiWRrkw_P0LLhMTl';
@@ -950,12 +960,6 @@ const ImportXlsx = {
             overlay.classList.remove('active');
         }
     }
-};
-
-// Gestionnaire global pour l'import Excel (appelé depuis l'onchange inline du file input)
-window.handleExcelFile = function (file) {
-    if (!file || typeof ImportXlsx === 'undefined' || !ImportXlsx.importXlsx) return;
-    ImportXlsx.importXlsx(file);
 };
 
 // ============================================
