@@ -258,7 +258,7 @@ const DataService = {
             const [uniRes, subjRes, itemRes] = await Promise.all([
                 supabaseClient.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
                 supabaseClient.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
-                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, updated_at, created_at').order('created_at', { ascending: true })
+                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, updated_at').order('updated_at', { ascending: true })
             ]);
             if (uniRes.error) throw new Error(uniRes.error?.message || 'universities');
             if (subjRes.error) throw new Error(subjRes.error?.message || 'subjects');
