@@ -258,7 +258,7 @@ const DataService = {
             const [uniRes, subjRes, itemRes] = await Promise.all([
                 supabaseClient.from('universities').select('id, name, created_at').order('created_at', { ascending: true }),
                 supabaseClient.from('subjects').select('id, university_id, name, owner, method, remark, created_at').order('created_at', { ascending: true }),
-                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, subject_name_cache, updated_at, created_at').order('created_at', { ascending: true })
+                supabaseClient.from('items').select('id, subject_id, title, status, priority, deadline, progress, comment, professor, updated_at, created_at').order('created_at', { ascending: true })
             ]);
             if (uniRes.error) throw new Error(uniRes.error?.message || 'universities');
             if (subjRes.error) throw new Error(subjRes.error?.message || 'subjects');
@@ -293,7 +293,7 @@ const DataService = {
                 itemsBySubjectId.get(sid).push({
                     id: i.id,
                     subjectId: i.subject_id,
-                    subjectNameCache: i.subject_name_cache || '',
+                    subjectNameCache: '',
                     title: i.title || '',
                     status: i.status || 'EN_ATTENTE',
                     priority: i.priority || 'MOYENNE',
@@ -414,7 +414,6 @@ const DataService = {
                 progress: payload.progress != null ? payload.progress : 0,
                 comment: payload.comment || '',
                 professor: payload.professor || '',
-                subject_name_cache: payload.subjectNameCache || '',
                 updated_at: new Date().toISOString()
             };
             const { error } = await supabaseClient.from('items').upsert(row, { onConflict: 'id' });
