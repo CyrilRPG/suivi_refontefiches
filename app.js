@@ -1902,14 +1902,14 @@ const App = {
             });
         });
 
-        // Import Excel
-        const btnImportExcel = document.getElementById('btn-import-excel');
-        const modalImportExcel = document.getElementById('modal-import-excel');
-        if (btnImportExcel && modalImportExcel) {
-            btnImportExcel.addEventListener('click', () => {
-                modalImportExcel.classList.add('active');
-            });
-        }
+        // Import Excel : délégation d'événement pour que le clic ouvre toujours la modale
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('#btn-import-excel')) {
+                e.preventDefault();
+                const modal = document.getElementById('modal-import-excel');
+                if (modal) modal.classList.add('active');
+            }
+        });
 
         const fileInput = document.getElementById('file-input');
         if (fileInput) {
