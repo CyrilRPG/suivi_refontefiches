@@ -20,7 +20,16 @@ const ImportXlsx = {
     },
 
     generateId() {
-        return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Toujours générer un UUID valide pour Supabase
+        if (crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        // Fallback: générer un UUID v4 valide
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     },
 
     parseExcelFile(file) {
@@ -610,7 +619,16 @@ const Storage = {
 
 const DataModel = {
     generateId() {
-        return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Toujours générer un UUID valide pour Supabase
+        if (crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        // Fallback: générer un UUID v4 valide
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     },
 
     getDefaultData() {
